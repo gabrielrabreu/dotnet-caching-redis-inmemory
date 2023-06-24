@@ -4,6 +4,7 @@ using DDRC.WebApi.Data;
 using DDRC.WebApi.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace DDRC.WebApi.Controllers
 {
@@ -11,13 +12,16 @@ namespace DDRC.WebApi.Controllers
     [Route("api/stocks")]
     public class StockController : ControllerBase
     {
-        private readonly IDistributedCache _cache;
+        private readonly IDistributedCache _distributedCache;
+        private readonly IMemoryCache _memoryCache;
         private readonly DataContext _dataContext;
 
-        public StockController(IDistributedCache cache, 
+        public StockController(IDistributedCache distributedCache,
+                               IMemoryCache memoryCache,
                                DataContext dataContext)
         {
-            _cache = cache;
+            _distributedCache = distributedCache;
+            _memoryCache = memoryCache;
             _dataContext = dataContext;
         }
 
@@ -52,7 +56,8 @@ namespace DDRC.WebApi.Controllers
             if (hasAdded)
             {
                 _dataContext.CommitChanges();
-                await _cache.RemoveAsync(CacheKeys.VideoStoreReportCacheKey);
+                await _distributedCache.RemoveAsync(CacheKeys.VideoStoreReportCacheKey);
+                _memoryCache.Remove(CacheKeys.VideoStoreReportCacheKey);
             }
 
             return NoContent();

@@ -1,3 +1,4 @@
+using DDRC.WebApi.Data.Seed;
 using DDRC.WebApi.Scope.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddDDRCControllers();
 builder.Services.AddDDRCSwagger();
-builder.Services.AddDDRCServices();
+builder.Services.AddDDRCServices(builder.Configuration);
 builder.Services.AddDDRCCache(builder.Configuration);
 
 builder.Logging.AddDDRCSerilog();
@@ -21,5 +22,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapControllers();
+
+app.Services.InitializeDatabase();
+app.Services.SeedData();
 
 app.Run();
