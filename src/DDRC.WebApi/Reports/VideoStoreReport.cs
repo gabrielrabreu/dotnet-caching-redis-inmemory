@@ -2,79 +2,90 @@
 using DDRC.WebApi.Data;
 using DDRC.WebApi.Models;
 
-namespace DDRC.WebApi.Adapters
+namespace DDRC.WebApi.Reports
 {
-    public class VideoStoreReportAdapter
+    public interface IVideoStoreReport
+    {
+        VideoStoreReportsDto? Generate();
+    }
+
+    public class VideoStoreReport : IVideoStoreReport
     {
         private const int MIN_DAYS_RANGE = 5;
         private const int MAX_DAYS_RANGE = 5;
 
-        private readonly List<VideoStoreModel> _videoStores;
-        private readonly List<MovieModel> _movies;
-        private readonly List<FulfilledSaleModel> _fulfilledSales;
-        private readonly List<ExpectedSaleModel> _expectedSales;
-        private readonly List<StockModel> _stocks;
+        private readonly DataContext _dataContext;
+        
+        private List<VideoStoreModel> _videoStores = new();
+        private List<MovieModel> _movies = new();
+        private List<FulfilledSaleModel> _fulfilledSales = new();
+        private List<ExpectedSaleModel> _expectedSales = new();
+        private List<StockModel> _stocks = new();
 
-        private VideoStoreModel? _currentVideoStore;
         private DateTimeOffset _currentDateTime;
         private DateTimeOffset _initialDateTime;
         private DateTimeOffset _endDateTime;
 
-        public VideoStoreReportAdapter(DataContext dataContext)
+        public VideoStoreReport(DataContext dataContext)
         {
-            _videoStores = dataContext.Query<VideoStoreModel>().ToList();
-            _movies = dataContext.Query<MovieModel>().ToList();
-            _fulfilledSales = dataContext.Query<FulfilledSaleModel>().ToList();
-            _expectedSales = dataContext.Query<ExpectedSaleModel>().ToList();
-            _stocks = dataContext.Query<StockModel>().ToList();
+            _dataContext = dataContext;
+        }
 
+        public VideoStoreReportsDto? Generate()
+        {
             _currentDateTime = DateTime.UtcNow.Date;
             _initialDateTime = _currentDateTime.AddDays(-MIN_DAYS_RANGE);
             _endDateTime = _currentDateTime.AddDays(MAX_DAYS_RANGE);
-        }
 
-        public VideoStoreReportDto? Transform(string videoStoreName)
-        {
-            _currentVideoStore = _videoStores.SingleOrDefault(x => x.Name == videoStoreName);
+            _videoStores = _dataContext.Query<VideoStoreModel>().ToList();
+            _movies = _dataContext.Query<MovieModel>().ToList();
+            _fulfilledSales = _dataContext.Query<FulfilledSaleModel>().ToList();
+            _expectedSales = _dataContext.Query<ExpectedSaleModel>().ToList();
+            _stocks = _dataContext.Query<StockModel>().ToList();
 
-            if (_currentVideoStore == null) return null;
+            var result = new VideoStoreReportsDto();
 
-            return new VideoStoreReportDto
+            foreach (var videoStore in _videoStores)
             {
-                VideoStore = _currentVideoStore.Name,
-                Movies = MapMovies()
-            };
-        }
-
-        private List<MovieSalesReportDto> MapMovies()
-        {
-            var result = new List<MovieSalesReportDto>();
-
-            foreach (var movie in _movies)
-            {
-                result.Add(MapMovie(movie));
+                result.VideoStores.Add(new VideoStoreReportDto
+                {
+                    VideoStore = videoStore.Name,
+                    Movies = MapMovies(videoStore)
+                });
             }
 
             return result;
         }
 
-        private MovieSalesReportDto MapMovie(MovieModel movie)
+        private List<MovieSalesReportDto> MapMovies(VideoStoreModel videoStore)
+        {
+            var result = new List<MovieSalesReportDto>();
+
+            foreach (var movie in _movies)
+            {
+                result.Add(MapMovie(videoStore, movie));
+            }
+
+            return result;
+        }
+
+        private MovieSalesReportDto MapMovie(VideoStoreModel videoStore, MovieModel movie)
         {
             var result = new MovieSalesReportDto()
             {
                 Movie = movie.Title,
-                Days = MapMovieDays(movie),
-                RetroactiveDays = MapMovieRetroactiveDays(movie)
+                Days = MapMovieDays(videoStore, movie),
+                RetroactiveDays = MapMovieRetroactiveDays(videoStore, movie)
             };
 
             return result;
         }
 
-        private List<DayMovieSalesReportDto> MapMovieDays(MovieModel movie)
+        private List<DayMovieSalesReportDto> MapMovieDays(VideoStoreModel videoStore, MovieModel movie)
         {
             var result = new List<DayMovieSalesReportDto>();
 
-            if (_currentVideoStore == null) return result;
+            if (videoStore == null) return result;
 
             var stockOnDay = _stocks
                 .SingleOrDefault(x => x.Movie.Id == movie.Id
@@ -88,7 +99,7 @@ namespace DDRC.WebApi.Adapters
 
                 var movieSalesOnDayAndVideoStore = _expectedSales
                     .SingleOrDefault(x => x.Movie.Id == movie.Id
-                                       && x.VideoStore.Id == _currentVideoStore.Id
+                                       && x.VideoStore.Id == videoStore.Id
                                        && x.Date == date);
 
                 result.Add(new DayMovieSalesReportDto()
@@ -105,11 +116,11 @@ namespace DDRC.WebApi.Adapters
             return result;
         }
 
-        private List<DayMovieSalesReportDto> MapMovieRetroactiveDays(MovieModel movie)
+        private List<DayMovieSalesReportDto> MapMovieRetroactiveDays(VideoStoreModel videoStore, MovieModel movie)
         {
             var result = new List<DayMovieSalesReportDto>();
 
-            if (_currentVideoStore == null) return result;
+            if (videoStore == null) return result;
 
             for (DateTimeOffset date = _initialDateTime; date < _currentDateTime; date = date.AddDays(1))
             {
@@ -123,7 +134,7 @@ namespace DDRC.WebApi.Adapters
 
                 var movieSalesOnDayAndVideoStore = _fulfilledSales
                     .Where(x => x.Movie.Id == movie.Id
-                             && x.VideoStore.Id == _currentVideoStore.Id
+                             && x.VideoStore.Id == videoStore.Id
                              && x.Date.Date == date.Date);
 
                 result.Add(new DayMovieSalesReportDto()

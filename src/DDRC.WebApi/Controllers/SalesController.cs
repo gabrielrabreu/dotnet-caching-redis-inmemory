@@ -1,7 +1,9 @@
-﻿using DDRC.WebApi.Contracts;
+﻿using DDRC.WebApi.Caches;
+using DDRC.WebApi.Contracts;
 using DDRC.WebApi.Data;
 using DDRC.WebApi.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace DDRC.WebApi.Controllers
 {
@@ -9,15 +11,18 @@ namespace DDRC.WebApi.Controllers
     [Route("api/sales")]
     public class SalesController : ControllerBase
     {
+        private readonly IDistributedCache _cache;
         private readonly DataContext _dataContext;
 
-        public SalesController(DataContext dataContext)
+        public SalesController(IDistributedCache cache, 
+                               DataContext dataContext)
         {
+            _cache = cache;
             _dataContext = dataContext;
         }
 
         [HttpPost("fulfilled:import")]
-        public ActionResult ImportFulfilled([FromBody] List<FulfilledSaleDto> dtos)
+        public async Task<IActionResult> ImportFulfilled([FromBody] List<FulfilledSaleDto> dtos)
         {
             if (dtos.Any(x => x.Date >= DateTime.UtcNow.Date)) return BadRequest();
 
@@ -47,13 +52,16 @@ namespace DDRC.WebApi.Controllers
             }
 
             if (hasAdded)
+            {
                 _dataContext.CommitChanges();
+                await _cache.RemoveAsync(CacheKeys.VideoStoreReportCacheKey);
+            }
 
             return NoContent();
         }
 
         [HttpPost("expected:import")]
-        public ActionResult ImportExpected([FromBody] List<ExpectedSaleDto> dtos)
+        public async Task<IActionResult> ImportExpected([FromBody] List<ExpectedSaleDto> dtos)
         {
             if (dtos.Any(x => x.Date < DateTime.UtcNow.Date)) return BadRequest();
 
@@ -84,7 +92,10 @@ namespace DDRC.WebApi.Controllers
             }
 
             if (hasAdded)
+            {
                 _dataContext.CommitChanges();
+                await _cache.RemoveAsync(CacheKeys.VideoStoreReportCacheKey);
+            }
 
             return NoContent();
         }

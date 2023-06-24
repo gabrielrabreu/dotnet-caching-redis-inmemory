@@ -8,6 +8,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddDDRCControllers();
 builder.Services.AddDDRCSwagger();
 builder.Services.AddDDRCServices();
+builder.Services.AddDDRCCache(builder.Configuration);
 
 builder.Logging.AddDDRCSerilog();
 

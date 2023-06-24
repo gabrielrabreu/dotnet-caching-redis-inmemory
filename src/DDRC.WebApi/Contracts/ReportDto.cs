@@ -1,5 +1,10 @@
 ﻿namespace DDRC.WebApi.Contracts
 {
+    public class VideoStoreReportsDto
+    {
+        public virtual List<VideoStoreReportDto> VideoStores { get; set; } = new List<VideoStoreReportDto>();
+    }
+
     public class VideoStoreReportDto
     {
         public string VideoStore { get; set; }
